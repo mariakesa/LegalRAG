@@ -71,10 +71,14 @@ class ContrastiveLoss(nn.Module):
         super(ContrastiveLoss, self).__init__()
         self.temperature = temperature
 
-    def forward(self, embeddings1, embeddings2):
-        embeddings1 = F.normalize(embeddings1, dim=1)
-        embeddings2 = F.normalize(embeddings2, dim=1)
-        logits = torch.matmul(embeddings1, embeddings2.T) / self.temperature
-        labels = torch.arange(len(embeddings1)).to(logits.device)
-        loss = F.cross_entropy(logits, labels)
+    def forward(self, z_i, z_j):
+        batch_size = z_i.size(0)
+        z = torch.cat([z_i, z_j], dim=0)
+        sim_matrix = F.cosine_similarity(z.unsqueeze(1), z.unsqueeze(0), dim=2) / self.temperature
+        sim_matrix.fill_diagonal_(-float('inf'))
+
+        labels = torch.arange(batch_size).to(z.device)
+        loss_i = F.cross_entropy(sim_matrix[:batch_size], labels)
+        loss_j = F.cross_entropy(sim_matrix[batch_size:], labels)
+        loss = (loss_i + loss_j) / 2
         return loss
